@@ -1,264 +1,92 @@
 #include <Arduino.h>
 #include <FastLED.h>
-#include <map>
-#include <vector>
 
-#define DATA_PIN 6
-// #define NUM_LEDS 300
-#define NUM_LEDS 20
+#define LED_PIN     6
+#define COLOR_ORDER GRB
+#define CHIPSET     WS2811
+#define NUM_LEDS    160
+// each strip has 40 LEDs
 
-// define the LED strip
+#define BRIGHTNESS  128
+#define OFF_COLOR CRGB::Black
+#define DEFAULT_DELAY 500
+
 CRGB leds[NUM_LEDS];
-int first_led = 0;
-int last_led = NUM_LEDS - 1;
 
-// setup defaults
-int setup_delay = 2000;
-uint8_t default_brightness = 50;
-
-// define the default delay time
-int default_delay = 500;
-
-// define the default off color
-CRGB default_off_color = CRGB::Black;
-
-// define the min/max hue values
-uint8_t min_hue = 0;
-uint8_t max_hue = 255;
-
-void led_assign(int led_num, CRGB color, int delay_time = default_delay) {
+void led_assign(int led_num, CRGB color, int delay_time = DEFAULT_DELAY) {
   leds[led_num] = color;
   FastLED.show();
   delay(delay_time);
 }
 
-void led_blink(int led_num, CRGB on_color, CRGB off_color = default_off_color, int delay_time = default_delay) {
-  led_assign(led_num, on_color, delay_time);
-  led_assign(led_num, off_color, delay_time);
-}
-
-void led_assign_all(CRGB color, int delay_time = default_delay) {
+void led_assign_all(CRGB color, int delay_time = DEFAULT_DELAY) {
   fill_solid(leds, NUM_LEDS, color);
   FastLED.show();
   delay(delay_time);
 }
 
-void led_blink_all(CRGB on_color, CRGB off_color = default_off_color, int delay_time = default_delay) {
-  led_assign_all(on_color, delay_time);
-  led_assign_all(off_color, delay_time);
-}
+uint8_t hue_max = 255;
+uint8_t hue_min = 3;
+uint8_t hue_range = hue_max - hue_min;
+int fade_steps = 21;
+uint8_t fade_step = hue_range / fade_steps;
+int fade_range = 5;
 
-void led_scan_forward(CRGB on_color, CRGB off_color = default_off_color, int delay_time = default_delay) {
-  for (int i = first_led; i <= last_led; i++) {
-    led_assign(i, on_color, delay_time);
-    leds[i] = off_color;
-  }
-}
-
-void led_scan_backward(CRGB on_color, CRGB off_color = default_off_color, int delay_time = default_delay) {
-  for (int i = last_led; i >= first_led; i--) {
-    led_assign(i, on_color, delay_time);
-    leds[i] = off_color;
-  }
-}
-
-void led_scanner(CRGB on_color, CRGB off_color = default_off_color, int delay_time = default_delay / 5) {
-  led_scan_forward(on_color, off_color, delay_time);
-  led_scan_backward(on_color, off_color, delay_time);
-}
-
-void led_chase_forward(CRGB on_color, CRGB off_color = default_off_color, int delay_time = default_delay) {
-  for (int i = first_led; i <= last_led; i++) {
-    led_assign(i, on_color, delay_time);
-  }
-}
-
-void led_chase_backward(CRGB on_color, CRGB off_color = default_off_color, int delay_time = default_delay) {
-  for (int i = last_led; i >= first_led; i--) {
-    led_assign(i, on_color, delay_time);
-  }
-}
-
-void led_chaser(std::vector<CRGB> colors, int delay_time = default_delay / 5) {
-  for (size_t color_index = 0; color_index < colors.size(); color_index++) {
-    if (color_index % 2 == 0) {
-      led_chase_forward(colors[color_index], default_off_color, delay_time);
-    } else {
-      led_chase_backward(colors[color_index], default_off_color, delay_time);
+void adjacent_fade(int central_led, int adjacent_led_count, uint8_t base_hue) {
+    if (adjacent_led_count == 0) return;
+    for (int j = 1; j <= adjacent_led_count; j++) {
+        uint8_t next_hue = base_hue + j * fade_step;
+        if (next_hue > hue_max) next_hue = hue_max;
+        leds[central_led + j] = CRGB(next_hue, 0, 0);
+        leds[central_led - j] = CRGB(next_hue, 0, 0);
     }
-  }
 }
 
-void led_gradient(CRGB color1, CRGB color2, CRGB color3, CRGB color4, int delay_time = default_delay) {
-  fill_gradient_RGB (leds, NUM_LEDS, color1, color2, color3, color4);
-  FastLED.show();
-  delay(delay_time);
-}
-
-void led_rainbow(uint8_t initial_hue = min_hue, uint8_t final_hue = max_hue, int delay_time = default_delay * 2) {
-  // initial_hue and final_hue should not be the same
-  fill_rainbow(leds, NUM_LEDS, initial_hue, final_hue);
-  FastLED.show();
-  delay(delay_time);
-}
-
-void test_led_assign() {
-  std::map<int, CRGB> led_colors = {
-    {0, CRGB::Red},
-    {1, CRGB::Green},
-    {2, CRGB::Blue},
-    {3, CRGB::Yellow},
-    {4, CRGB::Cyan},
-    {5, CRGB::Magenta},
-    {6, CRGB::White},
-    {7, CRGB::Orange},
-    {8, CRGB::Purple}
-  };
-  for (auto const& [led_num, color] : led_colors) {
-    led_assign(led_num, color);
-  }
-
-  for (auto const& [led_num, color] : led_colors) {
-    led_assign(led_num, default_off_color);
-  }
-}
-
-void test_led_blink() {
-  std::map<int, CRGB> led_colors = {
-    {0, CRGB::Red},
-    {1, CRGB::Green},
-    {2, CRGB::Blue},
-    {3, CRGB::Yellow},
-    {4, CRGB::Cyan},
-    {5, CRGB::Magenta},
-    {6, CRGB::White},
-    {7, CRGB::Orange},
-    {8, CRGB::Purple},
-    {9, CRGB::Pink}
-  };
-  for (auto const& [led_num, color] : led_colors) {
-    led_blink(led_num, color);
-  }
-}
-
-void test_led_assign_all() {
-  std::vector<CRGB> colors = {
-    CRGB::Red,
-    CRGB::Green,
-    CRGB::Blue,
-    default_off_color
-  };
-  for (const auto& color : colors) {
-    led_assign_all(color);
-  }
-}
-
-void test_led_blink_all() {
-  std::vector<CRGB> colors = {
-    CRGB::Red,
-    CRGB::Green,
-    CRGB::Blue,
-    CRGB::Magenta
-  };
-  for (const auto& color : colors) {
-    led_blink_all(color);
-  }
-}
-
-void test_led_scanner() {
-  CRGB on_color = CRGB::Red;
-  CRGB off_color = default_off_color;
-
-  led_scanner(on_color, off_color);
-}
-
-void test_led_chaser(int delay_time = 0) {
-  std::vector<CRGB> colors = {
-    CRGB::Red,
-    CRGB::Green,
-    CRGB::Blue,
-    default_off_color
-  };
-  led_chaser(colors);
-}
-
-void test_led_gradient() {
-  std::vector<std::vector<CRGB>> color_lists = {
-    {CRGB::Red, CRGB::Green, CRGB::Blue, CRGB::Cyan},
-    {CRGB::Cyan, CRGB::Magenta, CRGB::Yellow, CRGB::White},
-    {CRGB::Orange, CRGB::Purple, CRGB::Pink, CRGB::Cyan},
-    {CRGB::White, CRGB::Gray, CRGB::BlueViolet, CRGB::Black}
-  };
-
-  for (const auto& colors : color_lists) {
-    if (colors.size() == 4) {
-      led_gradient(colors[0], colors[1], colors[2], colors[3]);
+void fade_down(int central_led) {
+    for (int i = 0; i <= fade_steps; i++) {
+        uint8_t base_hue = hue_max - i * fade_step;
+        if (base_hue < hue_min) base_hue = hue_min;
+        leds[central_led] = CRGB(base_hue, 0, 0);
+        int adjacent_led_count = (i > fade_range) ? fade_range : i;
+        adjacent_fade(central_led, adjacent_led_count, base_hue);
+        FastLED.show();
+        delay(50);
     }
-  }
+}
 
-  led_assign_all(default_off_color);
+void fade_up(int central_led) {
+    for (int i = fade_steps; i >= 0; i--) {
+        uint8_t base_hue = hue_max - i * fade_step;
+        if (base_hue > hue_max) base_hue = hue_max;
+        leds[central_led] = CRGB(base_hue, 0, 0);
+        int adjacent_led_count = (i < fade_range) ? i : fade_range;
+        adjacent_fade(central_led, adjacent_led_count, base_hue);
+        FastLED.show();
+        delay(50);
+    }
 }
 
 void setup() {
-  // GRB indicates the ordering of the colors in the LEDs
-  FastLED.addLeds<WS2812B, DATA_PIN, GRB>(leds, NUM_LEDS);
-  FastLED.setBrightness(default_brightness);
-  delay(setup_delay);
+    delay(3000); // sanity delay
+    FastLED.addLeds<CHIPSET, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
+    FastLED.setBrightness( BRIGHTNESS );
 
-  // test_led_assign();
-  // test_led_blink();
+    led_assign_all(OFF_COLOR);
+    FastLED.show(); // display this frame
+    delay(1000);
 
-  // test_led_assign_all();
-  // test_led_blink_all();
-
-  // test_led_scanner();
-
-  // test_led_chaser();
-
-  // test_led_gradient();
-
-  // led_rainbow();
-
-  int led_num = 0;
-  leds[led_num] = CRGB::Red;
-  FastLED.show();
-
-  delay(1000);
-
-  // int fade_counter = 60;
-
-  // for (int i = 0; i <= 60; i++) {
-  //   leds[led_num].maximizeBrightness(fade_counter);
-  //   FastLED.show();
-  //   delay(500);
-  //   fade_counter--;
-  // }
-
-
-  // leds[led_num].maximizeBrightness();
-  // leds[led_num].fadeLightBy(200);
-  // leds[led_num].nscale8_video(255 - i);
-  // FastLED.show();
-  // delay(500);
-
-
-  // for (int i = 125; i <= 200; i++) {
-  //   // leds[led_num].maximizeBrightness();
-  //   leds[led_num].fadeLightBy(i);
-  //   // leds[led_num].nscale8_video(255 - i);
-  //   FastLED.show();
-  //   delay(500);
-  // }
-
-  // for (int i = 128; i >= 60; i--) {
-  //   led.maximizeBrightness();
-  //   led.fadeLightBy(i);
-  //   // leds[led_num].nscale8_video(255 - i);
-  //   FastLED.show();
-  //   delay(500);
-  // }
+    led_assign_all(CRGB::Red);
+    FastLED.show(); // display this frame
+    delay(1000);
 }
 
 void loop() {
-  // code to iterate over goes here
+    // int random_led = 5;
+
+    int random_led = random(5, NUM_LEDS - 5);
+
+    fade_down(random_led);
+    delay(1000);
+    fade_up(random_led);
+    delay(1000);
 }
